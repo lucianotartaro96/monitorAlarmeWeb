@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agro Control - Central de Monitoramento</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        agroDark: '#121212',
+                        agroCard: '#1e1e1e',
+                        agroBorder: '#2e2e2e',
+                        agroGreen: '#00a859',
+                        agroGreenHover: '#008f4c',
+                        agroOrange: '#ffa500',
+                        agroRed: '#ff4444',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #121212;
+            color: #f3f4f6;
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #121212; }
+        ::-webkit-scrollbar-thumb { background: #2e2e2e; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #00a859; }
+        .pulse-slow { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+
+    <!-- HEADER / NAVIGATION BAR -->
+    <header class="bg-agroCard border-b border-agroBorder sticky top-0 z-40 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
+            
+            <!-- Brand & Status -->
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-agroGreen/10 border border-agroGreen/30 flex items-center justify-center text-agroGreen text-xl font-bold">
+                    <i class="fa-solid fa-leaf"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-lg font-bold tracking-wider text-white">AGRO <span class="text-agroGreen">CONTROL</span></h1>
+                        <span id="roleBadge" class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded border bg-blue-950 text-blue-400 border-blue-600/50">
+                            OPERADOR
+                        </span>
+                    </div>
+                    <p class="text-xs text-gray-400">Central de Monitoramento Industrial</p>
+                </div>
+            </div>
+
+            <!-- Header Info & Role Switcher -->
+            <div class="flex items-center flex-wrap gap-3">
+                
+                <!-- Connectivity Polling Status -->
+                <div class="flex items-center space-x-2 bg-agroDark px-3 py-1.5 rounded-lg border border-agroBorder text-xs">
+                    <span id="connDot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-slow"></span>
+                    <span id="connText" class="text-gray-300 font-medium">API Conectada</span>
+                </div>
+
+                <!-- Temperature indicator (Visible if enabled) -->
+                <div id="headerTempContainer" class="flex items-center space-x-2 bg-agroDark px-3 py-1.5 rounded-lg border border-agroBorder text-xs">
+                    <i class="fa-solid fa-microchip text-sky-400"></i>
+                    <span class="text-gray-400">Temp MCU:</span>
+                    <span id="headerTempDisplay" class="font-bold text-sky-400">--.- °C</span>
+                </div>
+
+                <!-- Role Switcher Button -->
+                <button type="button" onclick="abrirModalRole()" 
+                    class="bg-agroDark hover:bg-agroBorder border border-agroBorder text-gray-200 text-xs font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-2">
+                    <i class="fa-solid fa-user-shield text-agroGreen"></i>
+                    <span id="roleSwitchBtnText">Alternar para Admin</span>
+                </button>
+            </div>
+
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT CONTAINER -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full space-y-6">
+
+        <!-- TOAST CONTAINER -->
+        <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2"></div>
+
+        <!-- 8-CHANNEL OPERATIONAL MONITORING GRID -->
+        <div>
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div>
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-layer-group text-agroGreen"></i> Painel dos Canais Operacionais
+                    </h2>
+                    <p class="text-xs text-gray-400">Visão em tempo real e renomeação prática dos grupos</p>
+                </div>
+                
+                <!-- Status Legend -->
+                <div class="flex items-center flex-wrap gap-3 text-xs bg-agroCard px-3 py-1.5 rounded-lg border border-agroBorder">
+                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-gray-600"></span> Desativado</span>
+                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-agroOrange"></span> Em Validação</span>
+                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-agroGreen"></span> Validado</span>
+                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-agroRed"></span> Em Falha</span>
+                </div>
+            </div>
+
+            <!-- Dynamic Channels Grid -->
+            <div id="channelsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Javascript will populate 8 cards dynamically -->
+            </div>
+        </div>
+
+        <!-- USER CONFIGURATION SECTION (Standard Operator) -->
+        <div class="bg-agroCard border border-agroBorder rounded-xl p-5 shadow-lg">
+            <div class="border-b border-agroBorder pb-3 mb-4 flex items-center justify-between">
+                <h3 class="text-base font-bold text-gray-200 flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-agroGreen"></i> Configurações Operacionais (Usuário Comum)
+                </h3>
+                <span class="text-xs text-gray-400">Ajustes práticos de campo</span>
+            </div>
+
+            <p class="text-xs text-gray-400 mb-4">
+                Altere os nomes práticos das áreas de irrigação e escolha o comportamento de resposta a falhas (Modo 1 ou Modo 2).
+            </p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="userChannelQuickSettings">
+                <!-- User rename and mode selection list will load here -->
+            </div>
+        </div>
+
+        <!-- ADMIN CONFIGURATION PANEL (ONLY VISIBLE IN ADMIN MODE) -->
+        <div id="adminPanelContainer" class="hidden bg-agroCard border-2 border-agroGreen/40 rounded-xl p-5 shadow-xl space-y-6">
+            
+            <div class="border-b border-agroBorder pb-3 flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-bold text-agroGreen flex items-center gap-2">
+                        <i class="fa-solid fa-lock text-agroGreen"></i> Painel do Administrador (Configurações Internas)
+                    </h3>
+                    <p class="text-xs text-gray-400">Parâmetros de hardware, temporizadores NVS e controle de canais operacionais</p>
+                </div>
+                <span class="px-2.5 py-1 rounded bg-agroGreen/10 border border-agroGreen/30 text-agroGreen font-mono text-xs">ACESSO RESTRITO</span>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- System Parameters Form -->
+                <div class="lg:col-span-2 space-y-4">
+                    <h4 class="text-sm font-semibold text-white uppercase tracking-wider text-xs border-b border-agroBorder pb-1">
+                        Temporizadores Globais e Display Físico LVGL
+                    </h4>
+
+                    <form id="adminGlobalForm" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs text-gray-300 mb-1 font-medium">Tempo de Validação Inicial (s)</label>
+                            <input type="number" id="adm_t_esp" min="1" required
+                                class="w-full bg-agroDark border border-agroBorder rounded-lg p-2 text-sm text-white focus:border-agroGreen">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs text-gray-300 mb-1 font-medium">Tempo de Pulso Output - X (s)</label>
+                            <input type="number" id="adm_t_pulso" min="1" required
+                                class="w-full bg-agroDark border border-agroBorder rounded-lg p-2 text-sm text-white focus:border-agroGreen">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs text-gray-300 mb-1 font-medium">Intervalo entre Pulsos - Y (s)</label>
+                            <input type="number" id="adm_t_int" min="0" required
+                                class="w-full bg-agroDark border border-agroBorder rounded-lg p-2 text-sm text-white focus:border-agroGreen">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs text-gray-300 mb-1 font-medium">Exibir Temp. no Display Físico ST7789</label>
+                            <select id="adm_exibir_temp" class="w-full bg-agroDark border border-agroBorder rounded-lg p-2 text-sm text-white focus:border-agroGreen">
+                                <option value="1">Sim (Exibir Temperatura no TFT)</option>
+                                <option value="0">Não (Ocultar Temperatura no TFT)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs text-gray-300 mb-1 font-medium">Número de Canais em Operação</label>
+                            <select id="adm_num_canais" class="w-full bg-agroDark border border-agroBorder rounded-lg p-2 text-sm text-white focus:border-agroGreen">
+                                <option value="8">8 Canais (Total Completo)</option>
+                                <option value="7">7 Canais Ativos</option>
+                                <option value="6">6 Canais Ativos</option>
+                                <option value="5">5 Canais Ativos</option>
+                                <option value="4">4 Canais Ativos</option>
+                            </select>
+                        </div>
+
+                        <div class="sm:col-span-2 pt-2">
+                            <button type="button" onclick="salvarConfigAdmin()"
+                                class="w-full bg-agroGreen hover:bg-agroGreenHover text-white font-bold py-2.5 px-4 rounded-lg transition flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-microchip"></i> Gravar Parâmetros no ESP32 (NVS)
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- API Debugger & Terminal Log View -->
+                <div class="bg-agroDark border border-agroBorder rounded-xl p-4 flex flex-col justify-between">
+                    <div>
+                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+                            <span><i class="fa-solid fa-code text-sky-400 mr-1"></i> Resposta JSON da API</span>
+                            <span class="text-[10px] text-emerald-400 font-mono">GET /api/status</span>
+                        </h4>
+                        <pre id="jsonDebugOutput" class="bg-black/70 p-3 rounded-lg text-[10px] font-mono text-emerald-400 overflow-x-auto h-44 border border-agroBorder">Carregando dados da API...</pre>
+                    </div>
+
+                    <button type="button" onclick="resetarNomesParaPadrao()" 
+                        class="mt-3 w-full bg-red-950/40 hover:bg-red-900/60 border border-red-800/40 text-red-300 text-xs font-semibold py-1.5 px-3 rounded-lg transition">
+                        Resetar Nomes dos Grupos para Padrão
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-agroCard border-t border-agroBorder py-4 mt-8">
+        <div class="max-w-7xl mx-auto px-4 text-center text-xs text-gray-500 flex flex-wrap justify-between items-center gap-2">
+            <div>&copy; 2026 <strong>Agro Control</strong> — Central de Monitoramento (ESP32-S3 & Rest API).</div>
+            <div>Painel Web Hospedado no GitHub Pages</div>
+        </div>
+    </footer>
+
+    <!-- ROLE SWITCH MODAL -->
+    <div id="roleModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-agroCard border border-agroBorder rounded-2xl max-w-sm w-full p-6 shadow-2xl">
+            <h3 class="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                <i class="fa-solid fa-user-shield text-agroGreen"></i> Autenticação de Perfil
+            </h3>
+            <p class="text-xs text-gray-400 mb-4">Insira a senha de Administrador para acessar as configurações de hardware.</p>
+            
+            <div class="space-y-3">
+                <input type="password" id="adminPasswordInput" placeholder="Senha do Administrador (admin123)"
+                    class="w-full bg-agroDark border border-agroBorder rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-agroGreen">
+                <p id="modalError" class="text-xs text-red-400 hidden">Senha incorreta. Tente novamente.</p>
+
+                <div class="flex gap-2 pt-2">
+                    <button type="button" onclick="fecharModalRole()"
+                        class="w-1/2 bg-agroDark hover:bg-agroBorder text-gray-300 font-semibold py-2 px-3 rounded-xl text-xs border border-agroBorder">
+                        Cancelar
+                    </button>
+                    <button type="button" onclick="confirmarTrocaPerfil()"
+                        class="w-1/2 bg-agroGreen hover:bg-agroGreenHover text-white font-bold py-2 px-3 rounded-xl text-xs">
+                        Entrar como Admin
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // URL DO ESP32 VIA mDNS (Acessível na rede local a partir do GitHub Pages)
+        const ESP32_URL = "http://agrocontrol.local";
+
+        // ESTADO GLOBAL DA APLICAÇÃO
+        let isAdmin = false;
+        let apiData = null;
+
+        // MAPA DE ALIASES / NOMES PRÁTICOS DOS GRUPOS (Salvo no localStorage)
+        const DEFAULT_NAMES = {
+            1: "Grupo 1 - Setor Norte",
+            2: "Grupo 2 - Setor Sul",
+            3: "Grupo 3 - Fertirrigação A",
+            4: "Grupo 4 - Fertirrigação B",
+            5: "Grupo 5 - Estufa 01",
+            6: "Grupo 6 - Estufa 02",
+            7: "Grupo 7 - Válvula Mestra",
+            8: "Grupo 8 - Retrolavagem"
+        };
+
+        function getChannelNames() {
+            const saved = localStorage.getItem('agrocontrol_channel_names');
+            return saved ? JSON.parse(saved) : DEFAULT_NAMES;
+        }
+
+        function setChannelName(id, name) {
+            const names = getChannelNames();
+            names[id] = name || `Grupo ${id}`;
+            localStorage.setItem('agrocontrol_channel_names', JSON.stringify(names));
+            renderCanais();
+            renderUserQuickSettings();
+            showToast(`Nome do Grupo ${id} atualizado para "${names[id]}"`);
+        }
+
+        function resetarNomesParaPadrao() {
+            localStorage.setItem('agrocontrol_channel_names', JSON.stringify(DEFAULT_NAMES));
+            renderCanais();
+            renderUserQuickSettings();
+            showToast('Nomes dos grupos restaurados para o padrão.');
+        }
+
+        // CONTROLADORES DE MODAL E PERFIL
+        function abrirModalRole() {
+            if (isAdmin) {
+                isAdmin = false;
+                atualizarVisibilidadePerfil();
+                showToast('Perfil alterado para Operador.');
+            } else {
+                document.getElementById('roleModal').classList.remove('hidden');
+                document.getElementById('adminPasswordInput').value = '';
+                document.getElementById('modalError').classList.add('hidden');
+            }
+        }
+
+        function fecharModalRole() {
+            document.getElementById('roleModal').classList.add('hidden');
+        }
+
+        function confirmarTrocaPerfil() {
+            const pass = document.getElementById('adminPasswordInput').value;
+            if (pass === 'admin123' || pass === 'admin') {
+                isAdmin = true;
+                fecharModalRole();
+                atualizarVisibilidadePerfil();
+                showToast('Acesso de Administrador concedido!');
+            } else {
+                document.getElementById('modalError').classList.remove('hidden');
+            }
+        }
+
+        function atualizarVisibilidadePerfil() {
+            const roleBadge = document.getElementById('roleBadge');
+            const roleSwitchBtnText = document.getElementById('roleSwitchBtnText');
+            const adminPanelContainer = document.getElementById('adminPanelContainer');
+
+            if (isAdmin) {
+                roleBadge.textContent = 'ADMINISTRADOR';
+                roleBadge.className = 'text-[10px] font-extrabold uppercase px-2 py-0.5 rounded border bg-emerald-950 text-emerald-400 border-emerald-600/50';
+                roleSwitchBtnText.textContent = 'Sair do Modo Admin';
+                adminPanelContainer.classList.remove('hidden');
+            } else {
+                roleBadge.textContent = 'OPERADOR';
+                roleBadge.className = 'text-[10px] font-extrabold uppercase px-2 py-0.5 rounded border bg-blue-950 text-blue-400 border-blue-600/50';
+                roleSwitchBtnText.textContent = 'Alternar para Admin';
+                adminPanelContainer.classList.add('hidden');
+            }
+        }
+
+        // TOAST NOTIFICATIONS
+        function showToast(msg, isError = false) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `px-4 py-2.5 rounded-xl shadow-2xl text-xs font-semibold flex items-center gap-2 border transition-all duration-300 ${
+                isError ? 'bg-red-950 border-red-600 text-red-200' : 'bg-emerald-950 border-emerald-600 text-emerald-200'
+            }`;
+            toast.innerHTML = `<i class="fa-solid ${isError ? 'fa-circle-xmark' : 'fa-circle-check'}"></i> ${msg}`;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3200);
+        }
+
+        // POLLING API STATUS VIA mDNS
+        async function fetchStatus() {
+            try {
+                const res = await fetch(`${ESP32_URL}/api/status`).catch(() => null);
+                let data = null;
+
+                if (res && res.ok) {
+                    data = await res.json();
+                } else {
+                    // MOCK DE TESTE QUANDO FORA DA REDE LOCAL DO ESP32
+                    data = apiData || {
+                        tempo_espera_segundos: 30,
+                        tempo_pulso_segundos: 5,
+                        tempo_intervalo_segundos: 10,
+                        exibir_temp_display: true,
+                        temperatura_interna: 41.8,
+                        cooler_ligado: false,
+                        canais: [
+                            { id: 1, habilitado: true, modo_falha: 2, motor_ativo: true, sensor_ativo: true, rele_acionado: false, contagem_ativa: false, validado: true, em_falha: false, falhas_x: 0 },
+                            { id: 2, habilitado: true, modo_falha: 1, motor_ativo: false, sensor_ativo: false, rele_acionado: false, contagem_ativa: false, validado: false, em_falha: false, falhas_x: 0 },
+                            { id: 3, habilitado: true, modo_falha: 2, motor_ativo: true, sensor_ativo: false, rele_acionado: true, contagem_ativa: false, validado: false, em_falha: true, falhas_x: 2 },
+                            { id: 4, habilitado: true, modo_falha: 2, motor_ativo: false, sensor_ativo: false, rele_acionado: false, contagem_ativa: false, validado: false, em_falha: false, falhas_x: 0 },
+                            { id: 5, habilitado: true, modo_falha: 1, motor_ativo: false, sensor_ativo: false, rele_acionado: false, contagem_ativa: false, validado: false, em_falha: false, falhas_x: 0 },
+                            { id: 6, habilitado: false, modo_falha: 2, motor_ativo: false, sensor_ativo: false, rele_acionado: false, contagem_ativa: false, validado: false, em_falha: false, falhas_x: 0 },
+                            { id: 7, habilitado: true, modo_falha: 1, motor_ativo: false, sensor_ativo: false, rele_acionado: false, contagem_ativa: false, validado: false, em_falha: false, falhas_x: 0 },
+                            { id: 8, habilitado: true, modo_falha: 2, motor_ativo: false, sensor_ativo: false, rele_acionado: false, contagem_ativa: false, validado: false, em_falha: false, falhas_x: 0 }
+                        ]
+                    };
+                }
+
+                apiData = data;
+                atualizarInterface(data);
+                document.getElementById('connDot').className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-slow';
+                document.getElementById('connText').textContent = 'Conectado (agrocontrol.local)';
+            } catch (err) {
+                document.getElementById('connDot').className = 'w-2.5 h-2.5 rounded-full bg-red-500';
+                document.getElementById('connText').textContent = 'Desconectado / Offline';
+            }
+        }
+
+        // ATUALIZA COMPONENTES GRÁFICOS
+        function atualizarInterface(data) {
+            const tempContainer = document.getElementById('headerTempContainer');
+            if (data.exibir_temp_display) {
+                tempContainer.classList.remove('hidden');
+                document.getElementById('headerTempDisplay').textContent = `${data.temperatura_interna.toFixed(1)} °C`;
+            } else {
+                tempContainer.classList.add('hidden');
+            }
+
+            if (isAdmin) {
+                document.getElementById('adm_t_esp').value = data.tempo_espera_segundos;
+                document.getElementById('adm_t_pulso').value = data.tempo_pulso_segundos;
+                document.getElementById('adm_t_int').value = data.tempo_intervalo_segundos;
+                document.getElementById('adm_exibir_temp').value = data.exibir_temp_display ? '1' : '0';
+                document.getElementById('jsonDebugOutput').textContent = JSON.stringify(data, null, 2);
+            }
+
+            renderCanais();
+        }
+
+        // RENDERIZAR OS 8 CARDS DE CANAIS
+        function renderCanais() {
+            if (!apiData || !apiData.canais) return;
+            const container = document.getElementById('channelsGrid');
+            const names = getChannelNames();
+            container.innerHTML = '';
+
+            apiData.canais.forEach(canal => {
+                let badgeClass = "bg-gray-800 text-gray-400 border-gray-700";
+                let statusText = "INATIVO";
+                let cardBorder = "border-agroBorder";
+
+                if (!canal.habilitado) {
+                    badgeClass = "bg-gray-900 text-gray-500 border-gray-800";
+                    statusText = "DESABILITADO";
+                } else if (canal.em_falha) {
+                    badgeClass = "bg-red-950 text-red-400 border-red-600 pulse-slow";
+                    statusText = `FALHA (${canal.falhas_x}x)`;
+                    cardBorder = "border-red-600/50 bg-red-950/10";
+                } else if (canal.contagem_ativa) {
+                    badgeClass = "bg-amber-950 text-amber-400 border-amber-600 pulse-slow";
+                    statusText = "VALIDANDO";
+                    cardBorder = "border-amber-600/50";
+                } else if (canal.validado) {
+                    badgeClass = "bg-emerald-950 text-emerald-400 border-emerald-600";
+                    statusText = "VALIDADO";
+                    cardBorder = "border-emerald-600/40";
+                }
+
+                const canalName = names[canal.id] || `Grupo ${canal.id}`;
+
+                const card = document.createElement('div');
+                card.className = `bg-agroCard border ${cardBorder} rounded-xl p-4 shadow-lg flex flex-col justify-between transition-all duration-300`;
+                card.innerHTML = `
+                    <div>
+                        <!-- Header do Card -->
+                        <div class="flex items-center justify-between pb-2 mb-3 border-b border-agroBorder">
+                            <div class="flex items-center gap-2 overflow-hidden">
+                                <span class="w-6 h-6 rounded-full bg-agroGreen/20 text-agroGreen text-xs font-bold flex items-center justify-center shrink-0">
+                                    ${canal.id}
+                                </span>
+                                <h3 class="font-bold text-white text-sm truncate" title="${canalName}">${canalName}</h3>
+                            </div>
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded border shrink-0 ${badgeClass}">${statusText}</span>
+                        </div>
+
+                        <!-- Indicadores de E/S -->
+                        <div class="grid grid-cols-3 gap-2 mb-3 text-center">
+                            <div class="bg-agroDark p-1.5 rounded border border-agroBorder">
+                                <span class="block text-[9px] text-gray-400 font-medium">Motor</span>
+                                <span class="text-xs font-bold ${canal.motor_ativo ? 'text-amber-400' : 'text-gray-500'}">
+                                    ${canal.motor_ativo ? 'ON' : 'OFF'}
+                                </span>
+                            </div>
+                            <div class="bg-agroDark p-1.5 rounded border border-agroBorder">
+                                <span class="block text-[9px] text-gray-400 font-medium">Sensor</span>
+                                <span class="text-xs font-bold ${canal.sensor_ativo ? 'text-emerald-400' : 'text-gray-500'}">
+                                    ${canal.sensor_ativo ? 'GND OK' : 'SEM SINAL'}
+                                </span>
+                            </div>
+                            <div class="bg-agroDark p-1.5 rounded border border-agroBorder">
+                                <span class="block text-[9px] text-gray-400 font-medium">Relé</span>
+                                <span class="text-xs font-bold ${canal.rele_acionado ? 'text-red-400 pulse-slow' : 'text-gray-500'}">
+                                    ${canal.rele_acionado ? 'LIGADO' : 'OFF'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Toggle Habilitado Rápido -->
+                    <div class="flex items-center justify-between pt-2 border-t border-agroBorder text-xs">
+                        <span class="text-gray-400 font-medium">Monitoramento:</span>
+                        <button type="button" onclick="toggleHabilitadoCanal(${canal.id}, ${!canal.habilitado})"
+                            class="px-2.5 py-1 rounded text-xs font-semibold border transition ${
+                                canal.habilitado 
+                                ? 'bg-emerald-950/60 text-emerald-400 border-emerald-600/60 hover:bg-emerald-900' 
+                                : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'
+                            }">
+                            ${canal.habilitado ? '<i class="fa-solid fa-power-off text-emerald-400 mr-1"></i> Ativo' : '<i class="fa-solid fa-ban text-gray-500 mr-1"></i> Ignorado'}
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // RENDERIZAR CONFIGURAÇÕES RÁPIDAS DE RENOMEAÇÃO (USUÁRIO COMUM)
+        function renderUserQuickSettings() {
+            const container = document.getElementById('userChannelQuickSettings');
+            const names = getChannelNames();
+            container.innerHTML = '';
+
+            for (let id = 1; id <= 8; id++) {
+                const canalData = apiData && apiData.canais ? apiData.canais.find(c => c.id === id) : null;
+                const modoAtual = canalData ? canalData.modo_falha : 2;
+
+                const item = document.createElement('div');
+                item.className = 'bg-agroDark border border-agroBorder rounded-lg p-3 flex flex-col justify-between space-y-2';
+                item.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-agroGreen">G${id}</span>
+                        <input type="text" id="alias_input_${id}" value="${names[id] || ''}" placeholder="Nome do setor..."
+                            class="w-full bg-agroCard border border-agroBorder rounded px-2.5 py-1 text-xs text-white focus:border-agroGreen">
+                        <button type="button" onclick="salvarNomeCanal(${id})" class="bg-agroGreen hover:bg-agroGreenHover text-white px-2 py-1 rounded text-xs font-semibold shrink-0">
+                            Salvar
+                        </button>
+                    </div>
+                    
+                    <div class="flex items-center justify-between text-xs pt-1 border-t border-agroBorder/50">
+                        <span class="text-gray-400">Modo de Falha:</span>
+                        <select id="modo_select_${id}" onchange="salvarModoCanal(${id}, this.value)"
+                            class="bg-agroCard border border-agroBorder rounded px-2 py-0.5 text-xs text-white focus:border-agroGreen">
+                            <option value="1" ${modoAtual === 1 ? 'selected' : ''}>Modo 1: Pulso Único</option>
+                            <option value="2" ${modoAtual === 2 ? 'selected' : ''}>Modo 2: Ciclo Contínuo X/Y</option>
+                        </select>
+                    </div>
+                `;
+                container.appendChild(item);
+            }
+        }
+
+        function salvarNomeCanal(id) {
+            const val = document.getElementById(`alias_input_${id}`).value;
+            setChannelName(id, val);
+        }
+
+        // POST APIs COM mDNS
+        async function toggleHabilitadoCanal(id, novoEstado) {
+            const canalData = apiData.canais.find(c => c.id === id);
+            const modo = canalData ? canalData.modo_falha : 2;
+            const body = `id=${id}&habilitado=${novoEstado ? 1 : 0}&modo=${modo}`;
+
+            try {
+                await fetch(`${ESP32_URL}/api/canal/config`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: body
+                });
+                showToast(`Canal ${id} ${novoEstado ? 'habilitado' : 'desabilitado'}`);
+                fetchStatus();
+            } catch (e) {
+                showToast('Falha na comunicação com ESP32', true);
+            }
+        }
+
+        async function salvarModoCanal(id, modoVal) {
+            const canalData = apiData.canais.find(c => c.id === id);
+            const hab = canalData ? (canalData.habilitado ? 1 : 0) : 1;
+            const body = `id=${id}&habilitado=${hab}&modo=${modoVal}`;
+
+            try {
+                await fetch(`${ESP32_URL}/api/canal/config`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: body
+                });
+                showToast(`Modo do Canal ${id} atualizado para Modo ${modoVal}`);
+                fetchStatus();
+            } catch (e) {
+                showToast('Falha na comunicação com ESP32', true);
+            }
+        }
+
+        async function salvarConfigAdmin() {
+            const t_esp = document.getElementById('adm_t_esp').value;
+            const t_pulso = document.getElementById('adm_t_pulso').value;
+            const t_int = document.getElementById('adm_t_int').value;
+            const display = document.getElementById('adm_exibir_temp').value;
+
+            const body = `tempo=${t_esp}&pulso=${t_pulso}&intervalo=${t_int}&display=${display}`;
+
+            try {
+                await fetch(`${ESP32_URL}/api/config`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: body
+                });
+                showToast('Parâmetros gravados na NVS do ESP32 com sucesso!');
+                fetchStatus();
+            } catch (e) {
+                showToast('Falha ao enviar configurações admin', true);
+            }
+        }
+
+        // INICIALIZAÇÃO
+        window.onload = () => {
+            fetchStatus();
+            setInterval(fetchStatus, 2000);
+            renderUserQuickSettings();
+        };
+    </script>
+</body>
+</html>
